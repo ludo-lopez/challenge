@@ -1,0 +1,104 @@
+import csv
+import re
+import itertools
+import math
+import random
+
+Qmax = 10000  # Quantité de carburant maximale
+Tmax = 10  # Durée maximale de déplacement
+V0 = 1.0  # Vitesse initiale
+a = 0.0698  # La constante a ´etant un des parametres de simulation de vitesse
+b = 3  # Paramètre de consommation de carburant
+b0 = 100  # Paramètre de consommation de carburant
+alpha = 1 #pondération carburant
+beta = 1 #pondération temps
+
+def acquisition(texte):
+    with open(texte, "r") as f:
+        data = f.read()
+    regex = re.compile(r"\s\s\s", re.IGNORECASE)
+    data = regex.sub(";", data)
+    with open(texte, "w") as f:
+        f.write(data)
+    with open(texte, "r") as f:
+        reader = csv.reader(f, delimiter=";")
+        data = []
+        for row in reader:
+            data.append((float(row[0]), float(row[1]), float(row[2])))
+    return data
+
+# edite les tableau data avec la position d'origine
+def numerotation(tableau):
+    N = len(tableau)+1
+    datax = [0] * N
+    datay = [0] * N
+    datam = [0] * N
+    for i in range(N-1):
+        if i==0:
+            datax[i] = 0.0
+            datay[i] = 0.0
+            datam[i] = 0.0
+        else:         
+            datax[i+1] = tableau[i][0]
+            datay[i+1] = tableau[i][1]
+            datam[i+1] = tableau[i][2]
+    return datax, datay, datam
+
+# Fonction pour calculer le coût d'un trajet
+def calculer_cout_trajet(trajet,datax,datay,datam,vitesse,masse):
+        cout_carb = 0.0
+        cout_temps = 0.0
+        distance = ((datax[trajet[1]] - datax[trajet[0]])**2 +
+                    (datay[trajet[1]] - datay[trajet[0]])**2)**0.5
+        cout_temps = distance / vitesse
+        q = b * masse + b0
+        cout_carb = q * distance
+    return (alpha * cout_carb + beta * cout_temps)
+
+
+#genere la grille combinatoire
+def generer_grille(datax,datay,datam,vitesse,masse):
+    N=len(datax)
+    chem=[0,0]
+    cout-carb=0.0
+    cout-temps=0.0
+    grille=[[0 for i in range(N)] for j in range(N)]
+    for i in range(N):
+        for j in range(N):
+            if i==j:
+                grille[i][j]=99999.0
+            else:
+                chem[0]=i
+                chem[1]=j
+                grille[i][j] = float(calcul_cout_trajet(chem,datax,datay,datam,vitesse,masse))
+    return grille
+
+#affiche la grille pour vérification
+def print_grille(grille):
+    N=len(grille)
+    print("grille :")
+    for i in range(N):
+        print()
+        for j in range(N):
+            print(grille[i][j],end=" ")
+    return
+
+
+def main():
+    datax = []
+    datay = []
+    datam = []
+    vitesse = 1
+    masse = 0
+    fichier = "donnees-map.txt"
+    donnees = acquisition(fichier)
+    datax, datay, datam = numerotation(donnees)
+    print("Coordonnées X des cylindres :", datax)
+    print("Coordonnées Y des cylindres :", datay)
+    print("Masse des cylindres :", datam)
+    grille=generer_grille(datax,datay,datam,vitesse,masse)
+    print_grille(grille)
+
+
+if __name__ == "__main__":
+    main()
