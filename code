@@ -11,40 +11,32 @@ import os
 Qmax = 10000  # Quantité de carburant maximale
 Tmax = 10  # Durée maximale de déplacement
 V0 = 1.0  # Vitesse initiale
-a = 0.0692  # La constante a ´etant un des parametres de simulation de vitesse
+a = 0.0692  # La constante a etant un des parametres de simulation de vitesse
 b = 3  # Paramètre de consommation de carburant
 b0 = 100  # Paramètre de consommation de carburant
 alpha = 1 #pondération carburant
 beta = 1 #pondération temps
-N=0 #nb balises
 
-def acquisition(texte):
-    N=0
-    with open(texte, "r") as f:
-        data = f.read()
-    regex = re.compile(r"\s\s\s", re.IGNORECASE)
-    data = regex.sub(";", data)
-    with open(texte, "w") as f:
-        f.write(data)
-    with open(texte, "r") as f:
-        reader = csv.reader(f, delimiter=";")
-        data = []
-        for row in reader:
-            data.append((float(row[0]), float(row[1]), float(row[2])))
-            N+=1
-    return data,N
-
-# edite les tableau data avec la position d'origine
-def numerotation(tableau):
-    M = len(tableau)+1
+#acquisition des coordonées et placement dans les tableaux avec origine
+def acquisition(fichier):
+    dataxb = []
+    datayb = []
+    datamb = []
+    DataMap = np.loadtxt(fichier, skiprows=0, dtype=float)
+    #chargement des donnees de la carte
+    dataxb=DataMap[:,0]
+    datayb=DataMap[:,1]
+    datamb=DataMap[:,2]
+    M=len(dataxb)+1
+    #décalage pour insérer origine
     datax = [0.0]*M
     datay = [0.0]*M
     datam = [0.0]*M
-    for i in range(M-1):     
-            datax[i+1] = tableau[i][0]
-            datay[i+1] = tableau[i][1]
-            datam[i+1] = tableau[i][2]
-    return datax, datay, datam
+    for i in range(M-1):
+        datax[i+1]=dataxb[i]
+        datay[i+1]=datayb[i]
+        datam[i+1]=datamb[i]
+    return datax, datay, datam,M
 
 # Fonction pour calculer le coût d'un trajet
 def calculer_cout_trajet(trajet,datax,datay,datam,vitesse,masse):
@@ -59,7 +51,6 @@ def calculer_cout_trajet(trajet,datax,datay,datam,vitesse,masse):
     q = b * masse + b0
     cout_carb = q * distance
     return cout_carb,cout_temps
-
 
 #genere la grille combinatoire
 def generer_grille(datax,datay,datam,vitesse,masse):
@@ -79,7 +70,7 @@ def generer_grille(datax,datay,datam,vitesse,masse):
                 grille[i][j] = alpha * cout_carb + beta * cout_temps
     return grille
 
-#rafraichi une grille déjà calculéé
+#rafraichir une grille déjà calculéé
 def rafraichir_grille(grille,datax,datay,datam,vitesse,masse):
     N=len(datax)
     chem=[0,0]
@@ -94,7 +85,7 @@ def rafraichir_grille(grille,datax,datay,datam,vitesse,masse):
                 grille[i][j] = alpha * cout_carb + beta * cout_temps
     return grille
 
-#affiche la grille pour vérification
+#afficher la grille pour vérification
 def print_grille(grille):
     N=len(grille)
     for i in range(N):
@@ -104,28 +95,39 @@ def print_grille(grille):
     print()
     return
 
-#trouve le chemin "des plus proches"
-def trouve_chemin_proche(grille,datax,datay,datam):
+#trouver le chemin "des plus proches"
+def trouve_chemin_proche(grille,datax,datay,datam,chemin,carb,temps,poids,recomp,speed):
     M=len(grille)
-    chemin=[0]*M #tableau de cheminement
-    chemin[0]=0 #départ de l'origine
-    carb=[0.0]*M #tableau de carburant
-    carb[0]=Qmax #valeur initiale
-    temps=[0.0]*M #tableau de temps
-    temps[0]=Tmax #valeur initiale
-    poids=[0]*M #tableau de poids
-    poids[0]=0 #initiale
-    recomp=[0]*M #tableau de recompenses
-    recomp[0]=0 #initiale
-    speed=[0.0]*M #tableau de vitesse (au départ du trajet)
-    speed[0]=V0 #initiale
     cout_carb = 0.0
     cout_temps = 0.0
     #recherche chemin optimum
     for j in range(1,M): #succession des choix
         #trouve le meilleur prochain point
         chemin[j] = trouve_mini(grille,chemin[j-1])
-        tutu=chemin[1]
+        # brule les chemins impossibles
+        for k in range(M):
+            grille[k][chemin[j-1]]=99999.0 #chemin precedent
+            grille[k][0]=99999.0 #chemins vers l'origine
+        #mise à jour des cumuls
+        cout_carb,cout_temps = calculer_cout_trajet((chemin[j-1],chemin[j]),datax,datay,datam,speed[j],poids[j])
+        carb[j]=carb[j-1]-cout_carb
+        temps[j]=temps[j-1]-cout_temps
+        poids[j]=poids[j-1]+int(datam[chemin[j]])
+        recomp[j]=recomp[j-1]+int(datam[chemin[j]])
+        speed[j]=V0 # decrement de vitesse à faire------------------------
+        #rafraichi les calculs de la grille
+        rafraichir_grille(grille,datax,datay,datam,speed[j],poids[j])
+    return chemin,carb,temps,poids,recomp,speed
+
+#trouver le chemin "des plus rentables"-------------------------
+def trouve_chemin_rentable(grille,datax,datay,datam,chemin,carb,temps,poids,recomp,speed):
+    M=len(grille)
+    cout_carb = 0.0
+    cout_temps = 0.0
+    #recherche chemin optimum
+    for j in range(1,M): #succession des choix
+        #trouve le meilleur prochain point
+        chemin[j] = trouve_mini(grille,chemin[j-1])
         # brule les chemins impossibles
         for k in range(M):
             grille[k][chemin[j-1]]=99999.0 #chemin precedent
@@ -140,9 +142,9 @@ def trouve_chemin_proche(grille,datax,datay,datam):
         #rafraichi les calculs de la grille
         rafraichir_grille(grille,datax,datay,datam,speed[j],poids[j])
         #print x grille pour diagnostiquer
-        #if j<3: 
-        #     print(j,"e grille : ")
-        #     print_grille(grille)
+        if j<3: 
+             print(j,"e grille : ")
+             print_grille(grille)
     return chemin,carb,temps,poids,recomp,speed
 
 #trouve le mini d'une ligne d'un tableau
@@ -168,21 +170,40 @@ def main():
     datax = []
     datay = []
     datam = []
-    vitesse = 1
-    masse = 0
-    fichier = "donnees-map.txt"
-    donnees,N = acquisition(fichier)
-    M=N+1 #nb balise y compris origine
-    datax, datay, datam = numerotation(donnees)
-    print("Coordonnées X des cylindres :", datax)
-    print("Coordonnées Y des cylindres :", datay)
-    print("Masse des cylindres :", datam)
-    grille=generer_grille(datax,datay,datam,vitesse,masse)
-    print("grille initiale:")
-    print_grille(grille)
-    #methode choix de chemin
-    chemin,carb,temps,poids,recomp,speed=trouve_chemin_proche(grille,datax,datay,datam)
+    #recupère argument ou fichier en dur
+    argc = len(sys.argv)
+    if argc < 2:
+        fichier="donnees-map.txt"
+    else:
+        fichier=sys.argv[1]
+    datax, datay, datam,M = acquisition(fichier)
+    chemin=[0]*M #tableau de cheminement
+    chemin[0]=0 #départ de l'origine
+    carb=[0.0]*M #tableau de carburant
+    carb[0]=Qmax #valeur initiale
+    temps=[0.0]*M #tableau de temps
+    temps[0]=Tmax #valeur initiale
+    poids=[0]*M #tableau de poids
+    poids[0]=0 #initiale
+    recomp=[0]*M #tableau de recompenses
+    recomp[0]=0 #initiale
+    speed=[0.0]*M #tableau de vitesse (au départ du trajet)
+    speed[0]=V0 #initiale
+    print("Coord.X des cylindres :", datax)
+    print("Coord.Y des cylindres :", datay)
+    print("Masse   des cylindres :", datam)
+    grille=generer_grille(datax,datay,datam,speed[0],poids[0])
+    #print("grille initiale:")
+    #print_grille(grille)
 
+    ###### CHOIX du chemin ######
+    # choix de chemin : methode recherche des proches
+    chemin,carb,temps,poids,recomp,speed=trouve_chemin_proche(
+        grille,datax,datay,datam,chemin,carb,temps,poids,recomp,speed)
+    # choix de chemin : methode recherche rentabilité
+    """chemin,carb,temps,poids,recomp,speed=trouve_chemin_rentable(
+        grille,datax,datay,datam,chemin,carb,temps,poids,recomp,speed)"""
+    # autres methodes...
 
     #impression des resultats
     print("chemin  trouve :",chemin)
@@ -195,7 +216,6 @@ def main():
     # utilitaire permettant de charger les donnees de la carte du # challenge et de la visualiser 
     tColorTab = {1:'red', 2:'green', 3:'blue'} 
     dbRayon = 0.85 
-    fichier="donnees-mapOLD.txt"
     ##########################
     # point d'entree du script 
     ########################## 
