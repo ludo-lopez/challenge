@@ -52,6 +52,10 @@ def calculer_cout_trajet(trajet,datax,datay,datam,vitesse,masse):
     cout_carb = q * distance
     return cout_carb,cout_temps
 
+#Fonction pour calculer la vitesse 
+def calculer_vitesse(distance, V0, a):
+    return V0* np.exp(-a * distance)
+
 #genere la grille combinatoire
 def generer_grille(datax,datay,datam,vitesse,masse):
     N=len(datax)
@@ -114,7 +118,9 @@ def trouve_chemin_proche(grille,datax,datay,datam,chemin,carb,temps,poids,recomp
         temps[j]=temps[j-1]-cout_temps
         poids[j]=poids[j-1]+int(datam[chemin[j]])
         recomp[j]=recomp[j-1]+int(datam[chemin[j]])
-        speed[j]=V0 # decrement de vitesse à faire------------------------
+        distance_parcourue = ((datax[chemin[j]] - datax[chemin[j-1]])**2 +
+                              (datay[chemin[j]] - datay[chemin[j-1]])**2)**0.5
+        speed[j]=calculer_vitesse(distance_parcourue, V0, a)
         #rafraichi les calculs de la grille
         rafraichir_grille(grille,datax,datay,datam,speed[j],poids[j])
     return chemin,carb,temps,poids,recomp,speed
